@@ -8,6 +8,24 @@ Tem como objetivo principal relatar as implementações de comunicação entre t
 
 O grupo de trabalho foi formado por Arthus Santos, Bruno Ítalo e João Ricardo.
 
+## Resumo
+
+Foram traduzidos para F# três exemplos originalmente escritos em Python: execução sequencial, compartilhamento de dados entre duas threads e importação de um módulo. O `Dockerfile` usa o SDK 8.0 do .NET para padronizar a execução. O exemplo de threads mantém a condição de corrida do código original, enquanto os exemplos de comunicação entre processos e entre computadores não estavam presentes na base fornecida.
+
+## Diagrama do produtor-consumidor
+
+```mermaid
+flowchart LR
+	A[principal] --> B[Inicia thread produtora]
+	A --> C[Inicia thread consumidora]
+	B --> D[produzirDados]
+	D --> E[(dados compartilhados)]
+	E --> F[consumirDados]
+	F --> G[Calcula Array.sum]
+	G --> H[Exibe resultado]
+	B -."ordem não garantida".-> C
+```
+
 ## Comunicação entre tarefas em F#
 
 ### Informações gerais
@@ -16,12 +34,15 @@ Comunicação entre tarefas permite que partes de um programa troquem dados e co
 
 O Docker foi escolhido porque fornece um ambiente reproduzível para a execução dos códigos. Assim, a versão do SDK, as bibliotecas e o sistema usado para executar o F# ficam padronizados, independentemente da configuração do computador de cada integrante.
 
-Não havia um `Dockerfile` no repositório original. A configuração usada para a execução é a imagem oficial `mcr.microsoft.com/dotnet/sdk:8.0`, montando a raiz do projeto em `/app`:
+O arquivo `Dockerfile` usa a imagem oficial `mcr.microsoft.com/dotnet/sdk:8.0`, define `/app` como diretório de trabalho, copia os scripts de `src/F#` e configura `dotnet fsi` como ponto de entrada. O comando padrão executa `sequencial.fsx`, mas qualquer um dos scripts pode ser informado ao iniciar o contêiner.
+
+Para construir a imagem e executar os exemplos, use os comandos a partir da raiz do repositório:
 
 ```powershell
-docker run --rm -v "${PWD}:/app" -w /app mcr.microsoft.com/dotnet/sdk:8.0 dotnet fsi "src/F#/sequencial.fsx" --run
-docker run --rm -v "${PWD}:/app" -w /app mcr.microsoft.com/dotnet/sdk:8.0 dotnet fsi "src/F#/produtor_consumidor.fsx" --run
-docker run --rm -v "${PWD}:/app" -w /app mcr.microsoft.com/dotnet/sdk:8.0 dotnet fsi "src/F#/exemplo_main.fsx"
+docker build -t ativ3-fsharp .
+docker run --rm ativ3-fsharp sequencial.fsx --run
+docker run --rm ativ3-fsharp produtor_consumidor.fsx --run
+docker run --rm ativ3-fsharp exemplo_main.fsx
 ```
 
 ### Comunicação entre tarefas com linhas de execução no mesmo processo
@@ -65,7 +86,7 @@ if fsi.CommandLineArgs |> Array.contains "--run" then
 	principal ()
 ```
 
-O comando de execução é o segundo comando da seção anterior. No ambiente utilizado, o executável `docker` estava instalado, mas o Docker Desktop não estava com o daemon Linux ativo. Por isso, a execução retornou `failed to connect to the docker API`. A saída de referência do Python foi:
+Os comandos de construção e execução estão na seção de informações gerais. No ambiente utilizado, o executável `docker` estava instalado, mas o Docker Desktop não estava com o daemon Linux ativo. Por isso, a construção retornou `failed to connect to the docker API`. A saída de referência do Python foi:
 
 ```text
 iniciou
@@ -103,7 +124,7 @@ O trabalho adicional necessário seria implementar o servidor e o cliente TCP em
 
 ## Considerações finais
 
-Foi possível traduzir para F# os três arquivos fornecidos: o processamento sequencial, o produtor-consumidor com threads e o exemplo de carregamento de módulo. A execução do Python foi realizada localmente e confirmou o comportamento descrito. A execução do F# via Docker ficou pendente porque o Docker Desktop estava instalado, mas o daemon não estava ativo no momento da validação.
+Foi possível traduzir para F# os três arquivos fornecidos: o processamento sequencial, o produtor-consumidor com threads e o exemplo de carregamento de módulo. Também foi criado o `Dockerfile`, que permite construir uma imagem com o SDK 8.0 do .NET e executar os scripts sem instalar o F# diretamente na máquina. A execução do Python foi realizada localmente e confirmou o comportamento descrito. A construção e a execução do contêiner ficaram pendentes porque o Docker Desktop estava instalado, mas o daemon não estava ativo no momento da validação.
 
 O principal aprendizado foi a diferença entre executar funções sequencialmente, compartilhar memória entre threads e comunicar processos. Também ficou evidente que iniciar duas threads não garante a ordem de execução: a sincronização precisa ser especificada pelo programa.
 
