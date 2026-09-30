@@ -2,5 +2,5 @@
 
 open Sequencial
 
-produzirDados () |> ignore
+Sequencial.produzirDados () |> ignore
 printfn "teste"
