@@ -129,3 +129,7 @@ Foi possível traduzir para F# os três arquivos fornecidos: o processamento seq
 O principal aprendizado foi a diferença entre executar funções sequencialmente, compartilhar memória entre threads e comunicar processos. Também ficou evidente que iniciar duas threads não garante a ordem de execução: a sincronização precisa ser especificada pelo programa.
 
 Para os próximos alunos, recomenda-se iniciar o Docker Desktop antes dos testes, usar `Join` e um mecanismo de sincronização no produtor-consumidor e registrar as versões do SDK e os comandos usados. Também é importante separar claramente os exemplos de threads, IPC local e comunicação por rede, pois eles têm problemas e soluções diferentes.
+
+## Vídeo:
+
+https://drive.google.com/file/d/1Smxi6IbPCZucGttWz_6p96QgYjUXiHsQ/view?usp=sharing
