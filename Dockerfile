@@ -4,4 +4,4 @@ WORKDIR /app
 COPY src/F# ./
 
 ENTRYPOINT ["dotnet", "fsi"]
-CMD ["sequencial.fsx", "--run"]
+CMD ["etapa1/sequencial.fsx", "--run"]

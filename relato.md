@@ -10,7 +10,7 @@ O grupo de trabalho foi formado por Arthus Santos, Bruno Ítalo e João Ricardo.
 
 ## Resumo
 
-Foram traduzidos para F# três exemplos originalmente escritos em Python: execução sequencial, compartilhamento de dados entre duas threads e importação de um módulo. O `Dockerfile` usa o SDK 8.0 do .NET para padronizar a execução. O exemplo de threads mantém a condição de corrida do código original, enquanto os exemplos de comunicação entre processos e entre computadores não estavam presentes na base fornecida.
+Foram implementadas em F# três formas de comunicação: compartilhamento de dados entre threads, pipe entre processos no mesmo computador e socket TCP entre processos. Também foram mantidos os exemplos de execução sequencial e importação de módulo. O `Dockerfile` usa o SDK 8.0 do .NET para padronizar a execução.
 
 ## Diagrama do produtor-consumidor
 
@@ -40,14 +40,24 @@ Para construir a imagem e executar os exemplos, use os comandos a partir da raiz
 
 ```powershell
 docker build -t ativ3-fsharp .
-docker run --rm ativ3-fsharp sequencial.fsx --run
-docker run --rm ativ3-fsharp produtor_consumidor.fsx --run
-docker run --rm ativ3-fsharp exemplo_main.fsx
+docker run --rm ativ3-fsharp etapa1/sequencial.fsx --run
+docker run --rm ativ3-fsharp etapa1/produtor_consumidor.fsx --run
+docker run --rm ativ3-fsharp etapa1/exemplo_main.fsx
+
+# Etapa 2: pipe entre dois processos
+docker run --rm ativ3-fsharp etapa2/produtor_pipe.fsx | docker run --rm -i ativ3-fsharp etapa2/consumidor_pipe.fsx
+
+# Etapa 3: socket TCP entre dois contêineres
+docker network create ativ3-net
+docker run -d --rm --name ativ3-servidor --network ativ3-net ativ3-fsharp etapa3/socket_servidor.fsx 5000
+docker run --rm --network ativ3-net ativ3-fsharp etapa3/socket_cliente.fsx ativ3-servidor 5000
+docker stop ativ3-servidor
+docker network rm ativ3-net
 ```
 
 ### Comunicação entre tarefas com linhas de execução no mesmo processo
 
-O arquivo `produtor-consumidor.fsx` é a tradução de `produtor-consumidor.py`. A variável `dados` é compartilhada pelas duas threads. A thread produtora gera 100 números aleatórios entre 0 e 110 e grava a lista; a thread consumidora lê a lista e calcula sua soma. `Thread.Start()` inicia as duas linhas de execução.
+O arquivo `etapa1/produtor_consumidor.fsx` é a tradução de `produtor-consumidor.py`. A variável `dados` é compartilhada pelas duas threads. A thread produtora gera 100 números aleatórios entre 0 e 110 e grava a lista; a thread consumidora lê a lista e calcula sua soma. `Thread.Start()` inicia as duas linhas de execução.
 
 Esta tradução mantém o comportamento do Python original, inclusive a ausência de `Join`, mutex ou evento de sincronização. Portanto, a thread consumidora pode começar antes de a produtora preencher `dados`, o que caracteriza uma condição de corrida. Uma versão de produção deveria usar uma sincronização, como `AutoResetEvent`, ou uma fila concorrente.
 
@@ -104,27 +114,107 @@ O problema encontrado foi a indisponibilidade do daemon do Docker. A solução �
 
 ### Comunicação entre tarefas em processos diferentes no mesmo computador
 
-Os arquivos Python fornecidos não implementam comunicação entre processos diferentes. `sequencial.py` executa tudo no mesmo processo, `produtor-consumidor.py` usa threads do mesmo processo e `exemplo_main.py` apenas importa um módulo. Consequentemente, não foi possível fazer uma tradução F# dessa categoria sem criar um exemplo novo que não existia na base de comparação.
+Esta etapa foi adicionada no repositório principal com os arquivos `src/python/produtor.py` e `src/python/consumidor.py`. Eles usam o pipe do terminal: o produtor escreve na saída padrão e o consumidor recebe essa saída pela entrada padrão. A execução é feita com o operador `|`, que conecta a saída de um processo à entrada do processo seguinte.
 
-Para implementar esta etapa, seria necessário usar um mecanismo de IPC, como pipes nomeados, sockets locais, memória compartilhada ou arquivos coordenados. O processo produtor e o processo consumidor também precisariam ser iniciados separadamente.
+Na versão F#, `etapa2/produtor_pipe.fsx` gera 100 números aleatórios e escreve somente os números na saída padrão. `etapa2/consumidor_pipe.fsx` lê todo o conteúdo da entrada padrão, separa os valores por espaços ou quebras de linha, converte-os para inteiros e calcula a soma. Como os processos não compartilham a variável `dados`, a comunicação ocorre exclusivamente pelo pipe.
 
-Não houve execução nem saída de terminal para esta categoria, pois não existe código correspondente nos arquivos Python originais.
+Código do produtor:
 
-O ponto pendente é a ausência de uma especificação de protocolo IPC no material fornecido. Para concluir esta etapa, seria necessário definir o formato das mensagens, quem inicia a comunicação e como os processos encerram a conexão.
+```fsharp
+open System
+
+let gerador = Random()
+let dados = Array.init 100 (fun _ -> gerador.Next(0, 111))
+printfn "%s" (String.Join(" ", dados))
+```
+
+Código do consumidor:
+
+```fsharp
+open System
+
+let entrada = Console.In.ReadToEnd().Trim()
+
+if String.IsNullOrWhiteSpace entrada then
+	failwith "Nenhum dado foi recebido pelo pipe."
+
+let dados =
+	entrada.Split([| ' '; '\r'; '\n'; '\t' |], StringSplitOptions.RemoveEmptyEntries)
+	|> Array.map Int32.Parse
+
+printfn "entrada: %d valores recebidos" dados.Length
+printfn "resultado -> %d" (Array.sum dados)
+```
+
+Execução:
+
+```powershell
+docker run --rm ativ3-fsharp etapa2/produtor_pipe.fsx | docker run --rm -i ativ3-fsharp etapa2/consumidor_pipe.fsx
+```
+
+Uma saída possível é:
+
+```text
+entrada: 100 valores recebidos
+resultado -> 5384
+```
+
+O formato do protocolo é simples: uma única sequência de números inteiros separados por espaço. O pipe é encerrado quando o produtor termina sua saída, fazendo o consumidor terminar a leitura. Essa solução funciona no mesmo computador, mas não permite comunicação direta entre máquinas diferentes.
 
 ### Comunicação entre tarefas em processos diferentes em computadores diferentes
 
-Essa categoria também não está implementada nos códigos Python recebidos. A comunicação entre computadores diferentes normalmente seria feita por sockets TCP, com um programa atuando como servidor e outro como cliente. Seria necessário definir o endereço IP, a porta, o protocolo das mensagens e as regras de tratamento de desconexão.
+Para esta etapa foi implementada uma comunicação cliente-servidor usando sockets TCP. O arquivo `etapa3/socket_servidor.fsx` cria um `TcpListener`, aguarda uma conexão e recebe os números enviados pelo cliente. Depois, calcula a soma e envia uma resposta pela mesma conexão. O arquivo `etapa3/socket_cliente.fsx` gera os números, conecta-se ao endereço do servidor, envia os dados e lê o resultado.
 
-Como não há um cliente, um servidor ou uma configuração de rede nos arquivos originais, não foi criada uma tradução F# correspondente a esta seção.
+O servidor recebe a porta como argumento e escuta em `IPAddress.Any`, permitindo conexões destinadas às interfaces disponíveis no contêiner. O cliente recebe o endereço e a porta como argumentos. O protocolo é uma linha com números inteiros separados por espaço; a resposta é uma linha contendo a soma.
 
-Não houve execução nem saída de terminal para esta categoria, porque o material fornecido não contém essa implementação.
+Código essencial do servidor:
 
-O trabalho adicional necessário seria implementar o servidor e o cliente TCP em F#, executar os processos em computadores acessíveis pela mesma rede e liberar a porta escolhida no firewall. Essa etapa não pode ser validada apenas com os arquivos Python atuais.
+```fsharp
+let servidor = TcpListener(IPAddress.Any, porta)
+servidor.Start()
+use cliente = servidor.AcceptTcpClient()
+use fluxo = cliente.GetStream()
+use leitor = new StreamReader(fluxo)
+use escritor = new StreamWriter(fluxo, AutoFlush = true)
+let entrada = leitor.ReadToEnd().Trim()
+let dados = entrada.Split([| ' '; '\r'; '\n'; '\t' |], StringSplitOptions.RemoveEmptyEntries) |> Array.map Int32.Parse
+escritor.WriteLine(sprintf "resultado -> %d" (Array.sum dados))
+```
+
+Código essencial do cliente:
+
+```fsharp
+use cliente = new TcpClient()
+cliente.Connect(endereco, porta)
+use fluxo = cliente.GetStream()
+use escritor = new StreamWriter(fluxo, AutoFlush = true)
+use leitor = new StreamReader(fluxo)
+escritor.WriteLine(String.Join(" ", dados))
+cliente.Client.Shutdown(SocketShutdown.Send)
+printfn "servidor: %s" (leitor.ReadLine())
+```
+
+Para testar no Docker, os contêineres são colocados na mesma rede virtual:
+
+```powershell
+docker network create ativ3-net
+docker run -d --rm --name ativ3-servidor --network ativ3-net ativ3-fsharp etapa3/socket_servidor.fsx 5000
+docker run --rm --network ativ3-net ativ3-fsharp etapa3/socket_cliente.fsx ativ3-servidor 5000
+docker stop ativ3-servidor
+docker network rm ativ3-net
+```
+
+Uma saída possível do cliente é:
+
+```text
+servidor: resultado -> 5210
+```
+
+Em computadores físicos diferentes, o nome do contêiner seria substituído pelo endereço IP ou nome DNS do computador servidor. Também seria necessário liberar a porta 5000 no firewall. O cliente e o servidor não compartilham memória; toda a comunicação acontece pela rede usando o socket TCP.
 
 ## Considerações finais
 
-Foi possível traduzir para F# os três arquivos fornecidos: o processamento sequencial, o produtor-consumidor com threads e o exemplo de carregamento de módulo. Também foi criado o `Dockerfile`, que permite construir uma imagem com o SDK 8.0 do .NET e executar os scripts sem instalar o F# diretamente na máquina. A execução do Python foi realizada localmente e confirmou o comportamento descrito. A construção e a execução do contêiner ficaram pendentes porque o Docker Desktop estava instalado, mas o daemon não estava ativo no momento da validação.
+Foi possível implementar em F# as três etapas: threads no mesmo processo, pipe entre processos no mesmo computador e socket TCP entre processos. Também foi criado o `Dockerfile`, que permite construir uma imagem com o SDK 8.0 do .NET e executar os scripts sem instalar o F# diretamente na máquina. A etapa do pipe foi baseada na atualização encontrada no repositório principal; a etapa de socket foi implementada como extensão do trabalho, pois ainda não havia um exemplo correspondente no upstream.
 
 O principal aprendizado foi a diferença entre executar funções sequencialmente, compartilhar memória entre threads e comunicar processos. Também ficou evidente que iniciar duas threads não garante a ordem de execução: a sincronização precisa ser especificada pelo programa.
 
