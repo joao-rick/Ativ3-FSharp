@@ -6,7 +6,7 @@ Este relato faz parte do processo avaliativo da disciplina de sistemas operacion
 
 Tem como objetivo principal relatar as implementações de comunicação entre tarefas na linguagem F#.
 
-O grupo de trabalho foi formado por Arthus Santos, Bruno Ítalo e João Ricardo.
+O grupo de trabalho foi formado por Arthur Santos, Ítalo Bruno e João Ricardo.
 
 ## Resumo
 
