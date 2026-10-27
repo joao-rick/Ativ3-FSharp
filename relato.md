@@ -51,7 +51,6 @@ docker run --rm ativ3-fsharp etapa2/produtor_pipe.fsx | docker run --rm -i ativ3
 docker network create ativ3-net
 docker run -d --rm --name ativ3-servidor --network ativ3-net ativ3-fsharp etapa3/socket_servidor.fsx 5000
 docker run --rm --network ativ3-net ativ3-fsharp etapa3/socket_cliente.fsx ativ3-servidor 5000
-docker stop ativ3-servidor
 docker network rm ativ3-net
 ```
 
@@ -200,9 +199,10 @@ Para testar no Docker, os contêineres são colocados na mesma rede virtual:
 docker network create ativ3-net
 docker run -d --rm --name ativ3-servidor --network ativ3-net ativ3-fsharp etapa3/socket_servidor.fsx 5000
 docker run --rm --network ativ3-net ativ3-fsharp etapa3/socket_cliente.fsx ativ3-servidor 5000
-docker stop ativ3-servidor
 docker network rm ativ3-net
 ```
+
+O servidor é iniciado com `--rm` e encerra depois de atender um cliente. Por isso, o contêiner é removido automaticamente e não é necessário executar `docker stop ativ3-servidor`. Ao final, basta remover a rede com `docker network rm ativ3-net`.
 
 Uma saída possível do cliente é:
 
