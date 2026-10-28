@@ -222,4 +222,4 @@ Para os próximos alunos, recomenda-se iniciar o Docker Desktop antes dos testes
 
 ## Vídeo:
 
-https://drive.google.com/file/d/1Smxi6IbPCZucGttWz_6p96QgYjUXiHsQ/view?usp=sharing
+https://drive.google.com/file/d/1x5gKjeh9q3Vz8kO7sBD0jGYe6PJUUx7Q/view?usp=sharing
